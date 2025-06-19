@@ -20,6 +20,7 @@ def scrape_bitcoin_treasuries():
     chrome_options.add_argument('--headless')  # Run in headless mode
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--window-size=1920,1080')  # Set a standard window size
     
     # Set binary location for GitHub Actions
     if os.path.exists('/usr/bin/chromium-browser'):
@@ -32,30 +33,42 @@ def scrape_bitcoin_treasuries():
     driver = webdriver.Chrome(options=chrome_options, service=service)
     
     try:
+        print("Starting browser...")
         # Navigate to the website
         driver.get('https://bitbo.io/treasuries/')
+        print("Page loaded, waiting for content...")
         
-        # Wait for tables to load
-        WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.TAG_NAME, "table"))
+        # Wait longer for tables to load and print page source for debugging
+        wait = WebDriverWait(driver, 30)  # Increased wait time to 30 seconds
+        
+        # Wait for any table to be present
+        tables = wait.until(
+            EC.presence_of_all_elements_located((By.TAG_NAME, "table"))
         )
-        
-        # Get all tables
-        tables = driver.find_elements(By.TAG_NAME, "table")
+        print(f"Found {len(tables)} tables on the page")
         
         # Get category totals (looking for table with "Category" in first column header)
         category_data = {}
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         category_data['timestamp'] = timestamp
         
-        for table in tables:
+        for idx, table in enumerate(tables):
+            print(f"\nAnalyzing table {idx + 1}:")
             headers = table.find_elements(By.TAG_NAME, "th")
+            print(f"Found {len(headers)} headers in table {idx + 1}")
+            if headers:
+                print(f"First header text: {headers[0].text}")
+            
             if headers and "Category" in headers[0].text:
+                print("Found category table!")
                 category_rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Skip header row
+                print(f"Found {len(category_rows)} category rows")
+                
                 for row in category_rows:
                     cols = row.find_elements(By.TAG_NAME, "td")
                     if len(cols) >= 3:  # Ensure we have enough columns
                         category = cols[0].text.strip()
+                        print(f"Processing category: {category}")
                         if "/treasuries/" in category:  # Extract category name from link text
                             category = category.split("/treasuries/")[0].strip()
                         category = category.replace('[', '').replace(']', '')  # Remove [] from category names
@@ -65,10 +78,27 @@ def scrape_bitcoin_treasuries():
                         # Clean up category name for column header
                         category_key = category.replace(' ', '_').lower()
                         category_data[category_key] = btc_amount
+                        print(f"Added {category_key}: {btc_amount}")
                 
                 break  # Found and processed the category table, exit loop
+            else:
+                print("Not a category table, continuing search...")
         
+        # Print page source if no categories were found
+        if len(category_data) <= 1:  # Only timestamp present
+            print("\nNo categories found. Page source:")
+            print(driver.page_source[:1000] + "...")  # Print first 1000 chars of page source
+            
         return category_data
+    
+    except Exception as e:
+        print(f"An error occurred while scraping: {str(e)}")
+        print("\nPage source at error:")
+        try:
+            print(driver.page_source[:1000] + "...")
+        except:
+            print("Could not get page source")
+        raise
     
     finally:
         driver.quit()
