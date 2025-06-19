@@ -5,12 +5,17 @@ on:
     - cron: '0 0 * * *'  # Run at 00:00 UTC every day
   workflow_dispatch:  # Allow manual trigger
 
+permissions:
+  contents: write  # This is required for pushing changes
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}  # Use the automatic token
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -37,7 +42,12 @@ jobs:
         
     - name: Commit and push if changes
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git add category_btc-treasuries.csv
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Update Bitcoin Treasury data [skip ci]" && git push) 
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update Bitcoin Treasury data [skip ci]"
+          git push
+        fi 
