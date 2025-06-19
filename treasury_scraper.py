@@ -20,9 +20,16 @@ def scrape_bitcoin_treasuries():
     chrome_options.add_argument('--headless')  # Run in headless mode
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
+    
+    # Set binary location for GitHub Actions
+    if os.path.exists('/usr/bin/chromium-browser'):
+        chrome_options.binary_location = '/usr/bin/chromium-browser'
+    elif os.path.exists('/usr/bin/chromium'):
+        chrome_options.binary_location = '/usr/bin/chromium'
 
-    # Initialize the driver
-    driver = webdriver.Chrome(options=chrome_options)
+    # Initialize the driver with service
+    service = Service()
+    driver = webdriver.Chrome(options=chrome_options, service=service)
     
     try:
         # Navigate to the website
